@@ -13,6 +13,7 @@ func New(svc *core.Service) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) Register(public, authed *gin.RouterGroup) {
 	public.POST("/auth/login", h.login)
+	public.POST("/auth/bootstrap", h.bootstrap)
 	public.POST("/auth/refresh", h.refresh)
 	authed.POST("/auth/logout", h.logout)
 	authed.POST("/auth/profile", h.profile)
@@ -26,6 +27,10 @@ func (h *Handler) Register(public, authed *gin.RouterGroup) {
 	authed.POST("/role/list", h.roles)
 	authed.POST("/role/update", h.updateRole)
 	authed.POST("/agent/credential/create", h.createAgent)
+}
+
+func (h *Handler) bootstrap(c *gin.Context) {
+	httpserver.OK(c, h.svc.BootstrapHint())
 }
 
 func (h *Handler) login(c *gin.Context) {
