@@ -1,0 +1,81 @@
+# EduGo 示例配置。复制为 configs/config.yaml 后按环境修改。
+# 发布模式必须通过环境变量注入 JWT 密钥和管理员密码，不要把真实密钥写入仓库。
+server:
+  port: 8080
+  mode: debug
+  shutdownTimeout: 30s
+database:
+  driver: sqlite
+  dsn: data/edugo.db
+  maxOpenConns: 1
+  maxIdleConns: 1
+  connMaxLifetime: 1h
+  migrationMode: versioned
+auth:
+  jwtSecret: ""
+  jwtExpire: 24h
+  refreshExpire: 168h
+ai:
+  enabled: false
+  provider: openai-compatible
+  baseURL: ""
+  apiKey: ""
+  connectTimeout: 10s
+  requestTimeout: 60s
+  streamIdleTimeout: 30s
+  streamMaxDuration: 5m
+  maxRetries: 2
+  profiles:
+    tutoring:
+      model: ""
+      maxOutputTokens: 2048
+    questionGeneration:
+      model: ""
+      maxOutputTokens: 4096
+    grading:
+      model: ""
+      maxOutputTokens: 2048
+    suggestion:
+      model: ""
+      maxOutputTokens: 2048
+    pathGeneration:
+      model: ""
+      maxOutputTokens: 4096
+    summary:
+      model: ""
+      maxOutputTokens: 2048
+    embedding:
+      model: ""
+      maxOutputTokens: 0
+log:
+  level: info
+  format: json
+  output: stdout
+scheduler:
+  enabled: true
+  timezone: Asia/Shanghai
+  checkInterval: 1m
+eventbus:
+  pollInterval: 1s
+  maxAttempts: 8
+organization:
+  enabled: false
+storage:
+  driver: local
+  root: data/uploads
+  maxBytes: 20971520
+query:
+  defaultPageSize: 20
+  maxPageSize: 200
+  maxListSize: 1000
+admin:
+  username: admin
+  password: ""
+seed:
+  demo: false
+security:
+  bcryptCost: 12
+  loginPerMinute: 20
+  refreshPerMinute: 30
+  aiPerMinute: 20
+  maxJSONBodyBytes: 1048576

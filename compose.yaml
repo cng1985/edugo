@@ -1,0 +1,87 @@
+services:
+  edugo:
+    build: .
+    profiles: ["sqlite"]
+    ports:
+      - "8080:8080"
+    environment:
+      EDUGO_CONFIG_PATH: /opt/edugo/config.example.yaml
+      EDUGO_SERVER_MODE: release
+      EDUGO_SERVER_PORT: "8080"
+      EDUGO_DATABASE_DRIVER: sqlite
+      EDUGO_DATABASE_DSN: /data/edugo.db
+      EDUGO_AUTH_JWT_SECRET: ${EDUGO_AUTH_JWT_SECRET:?set a 32+ character secret}
+      EDUGO_ADMIN_USERNAME: ${EDUGO_ADMIN_USERNAME:-admin}
+      EDUGO_ADMIN_PASSWORD: ${EDUGO_ADMIN_PASSWORD:?set an admin password}
+      EDUGO_AI_ENABLED: "false"
+      EDUGO_SEED_DEMO: "false"
+    volumes:
+      - edugo-data:/data
+
+  mysql:
+    image: mysql:8.4
+    profiles: ["mysql"]
+    environment:
+      MYSQL_DATABASE: edugo
+      MYSQL_USER: edugo
+      MYSQL_PASSWORD: edugo
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  edugo-mysql:
+    build: .
+    profiles: ["mysql"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      EDUGO_CONFIG_PATH: /opt/edugo/config.example.yaml
+      EDUGO_SERVER_MODE: release
+      EDUGO_DATABASE_DRIVER: mysql
+      EDUGO_DATABASE_DSN: edugo:edugo@tcp(mysql:3306)/edugo?charset=utf8mb4&parseTime=true&loc=UTC
+      EDUGO_AUTH_JWT_SECRET: ${EDUGO_AUTH_JWT_SECRET:?set a 32+ character secret}
+      EDUGO_ADMIN_PASSWORD: ${EDUGO_ADMIN_PASSWORD:?set an admin password}
+      EDUGO_AI_ENABLED: "false"
+
+  postgres:
+    image: postgres:16
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: edugo
+      POSTGRES_USER: edugo
+      POSTGRES_PASSWORD: edugo
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edugo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  edugo-postgres:
+    build: .
+    profiles: ["postgres"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      EDUGO_CONFIG_PATH: /opt/edugo/config.example.yaml
+      EDUGO_SERVER_MODE: release
+      EDUGO_DATABASE_DRIVER: postgres
+      EDUGO_DATABASE_DSN: host=postgres user=edugo password=edugo dbname=edugo port=5432 sslmode=disable TimeZone=UTC
+      EDUGO_AUTH_JWT_SECRET: ${EDUGO_AUTH_JWT_SECRET:?set a 32+ character secret}
+      EDUGO_ADMIN_PASSWORD: ${EDUGO_ADMIN_PASSWORD:?set an admin password}
+      EDUGO_AI_ENABLED: "false"
+
+volumes:
+  edugo-data:
