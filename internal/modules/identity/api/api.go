@@ -36,6 +36,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type BootstrapHint struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
@@ -84,8 +89,8 @@ type UpdateRoleRequest struct {
 }
 
 type CreateAgentRequest struct {
-	Name             string `json:"name"`
-	DelegatedUserID  string `json:"delegatedUserId"`
+	Name            string `json:"name"`
+	DelegatedUserID string `json:"delegatedUserId"`
 }
 
 type AgentCredential struct {

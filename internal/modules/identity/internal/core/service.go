@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -521,20 +522,62 @@ func (s *Service) Seed(ctx context.Context) error {
 	if err := s.repo.EnsureRBAC(roles, perms, links); err != nil {
 		return err
 	}
-	if s.cfg.Admin.Password != "" {
-		username := s.cfg.Admin.Username
-		if username == "" {
-			username = "admin"
-		}
-		if _, err := s.repo.FindUserByUsername(username); err != nil {
-			if _, err := s.createUser(api.CreateUserRequest{
-				Username: username, Password: s.cfg.Admin.Password, DisplayName: "管理员", Role: api.RoleAdmin, Timezone: "Asia/Shanghai", OrgID: "default",
-			}, "default"); err != nil && apperr.As(err).ErrorCode != "USERNAME_TAKEN" {
-				return err
-			}
-		}
+	username, password, explicit := s.adminCredentials()
+	if password == "" {
+		return nil
 	}
-	return nil
+	user, err := s.repo.FindUserByUsername(username)
+	if err != nil {
+		if !apperr.IsCode(err, "UNAUTHENTICATED") {
+			return err
+		}
+		if _, err := s.createUser(api.CreateUserRequest{
+			Username: username, Password: password, DisplayName: "管理员", Role: api.RoleAdmin, Timezone: "Asia/Shanghai", OrgID: "default",
+		}, "default"); err != nil && !apperr.IsCode(err, "USERNAME_TAKEN") {
+			return err
+		}
+		if !explicit {
+			slog.Info("已创建开发默认管理员", "username", username)
+		}
+		return nil
+	}
+	if !explicit {
+		return nil
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) == nil {
+		return nil
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), s.cfg.Security.BcryptCost)
+	if err != nil {
+		return apperr.Internal("密码处理失败")
+	}
+	user.PasswordHash = string(hash)
+	user.Version++
+	user.UpdatedAt = time.Now().UTC()
+	return s.repo.SaveUser(user)
+}
+
+const debugAdminPassword = "admin123"
+
+func (s *Service) adminCredentials() (username, password string, explicit bool) {
+	username = strings.TrimSpace(s.cfg.Admin.Username)
+	if username == "" {
+		username = "admin"
+	}
+	password = strings.TrimSpace(s.cfg.Admin.Password)
+	explicit = password != ""
+	if !explicit && strings.EqualFold(s.cfg.Server.Mode, "debug") {
+		password = debugAdminPassword
+	}
+	return username, password, explicit
+}
+
+func (s *Service) BootstrapHint() *api.BootstrapHint {
+	username, password, explicit := s.adminCredentials()
+	if explicit || password == "" {
+		return nil
+	}
+	return &api.BootstrapHint{Username: username, Password: password}
 }
 
 func (s *Service) FindByUsername(username string) (api.User, error) {

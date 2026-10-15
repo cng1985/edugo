@@ -6,12 +6,14 @@ EduGo 是一个模块化单体学习平台：课程、题库、学习记录、�
 
 1. 安装 Go 1.27+ 与 Node.js 22+。
 2. 复制 `configs/config.example.yaml` 为 `configs/config.yaml`。
-3. 设置环境变量：
+3. 开发模式（`server.mode=debug`）如果没有配置管理员密码，首次启动会创建默认账号：用户名 `admin`，密码 `admin123`。登录页也会带出这组账号。发布模式不会创建它。
+
+   要改用自己的密码，设置环境变量后再启动。已存在的同名管理员会按这个密码更新：
 
 ```bash
 export EDUGO_AUTH_JWT_SECRET='请替换为至少32位的随机密钥'
 export EDUGO_ADMIN_USERNAME=admin
-export EDUGO_ADMIN_PASSWORD='请替换为管理员密码'
+export EDUGO_ADMIN_PASSWORD='请替换为至少8位的管理员密码'
 ```
 
 4. 构建并启动：

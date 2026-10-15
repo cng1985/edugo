@@ -70,6 +70,7 @@ query:
   maxListSize: 1000
 admin:
   username: admin
+  # 留空且 server.mode=debug 时，启动会创建 admin / admin123。发布模式不会创建。
   password: ""
 seed:
   demo: false

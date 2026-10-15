@@ -2,7 +2,7 @@
 
 ## 启动
 
-设置 `EDUGO_AUTH_JWT_SECRET` 和 `EDUGO_ADMIN_PASSWORD` 后执行 `edugo`。首次启动会迁移表结构，并在管理员密码已配置时创建管理员。
+开发模式未配置 `EDUGO_ADMIN_PASSWORD` 时，首次启动创建管理员 `admin` / `admin123`。自行设置 `EDUGO_AUTH_JWT_SECRET` 和 `EDUGO_ADMIN_PASSWORD` 后执行 `edugo`，已有同名管理员会改成该密码。首次启动会迁移表结构。发布模式不会创建默认账号。
 
 SQLite 文件和上传目录默认在 `data/`。备份时复制数据库文件以及 `data/uploads`。恢复前先停止进程。
 
