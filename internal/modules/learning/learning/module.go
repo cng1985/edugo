@@ -1,0 +1,20 @@
+package learning
+
+import (
+	"github.com/cng1985/edugo/internal/modules/learning/learning/api"
+	"github.com/cng1985/edugo/internal/modules/learning/learning/internal/core"
+	"github.com/cng1985/edugo/internal/modules/learning/learning/internal/httpapi"
+	"github.com/cng1985/edugo/internal/modules/learning/learning/internal/store"
+	"github.com/cng1985/edugo/internal/platform/database"
+	"github.com/cng1985/edugo/internal/platform/httpserver"
+	"go.uber.org/fx"
+)
+
+var Module = fx.Module("learning",
+	fx.Provide(fx.Private, store.New, core.New, httpapi.New),
+	fx.Provide(
+		func(s *core.Service) api.Reader { return s },
+		fx.Annotate(func(h *httpapi.Handler) httpserver.Registrar { return h }, fx.ResultTags(`group:"routes"`)),
+		fx.Annotate(func() database.Contribution { return database.Contribution{Models: store.Models()} }, fx.ResultTags(`group:"schemas"`)),
+	),
+)
