@@ -35,6 +35,10 @@ func New() *fx.App {
 	return fx.New(Options()...)
 }
 
+func Run() {
+	New().Run()
+}
+
 func Options() []fx.Option {
 	return []fx.Option{
 		fx.Provide(
