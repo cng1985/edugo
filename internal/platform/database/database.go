@@ -3,6 +3,9 @@ package database
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,6 +30,9 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 	switch cfg.Database.Driver {
 	case "sqlite":
 		dsn := cfg.Database.DSN
+		if err := ensureSQLiteDir(dsn); err != nil {
+			return nil, err
+		}
 		if !strings.Contains(dsn, "_pragma=foreign_keys") {
 			sep := "?"
 			if strings.Contains(dsn, "?") {
@@ -44,6 +50,9 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 	}
 	db, err := gorm.Open(dialector, gcfg)
 	if err != nil {
+		if cfg.Database.Driver == "sqlite" {
+			return nil, fmt.Errorf("数据库连接失败（驱动 sqlite）: %w", err)
+		}
 		return nil, fmt.Errorf("数据库连接失败（驱动 %s）", cfg.Database.Driver)
 	}
 	sqlDB, err := db.DB()
@@ -62,12 +71,12 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 }
 
 type migrationRow struct {
-	Version   string `gorm:"primaryKey;size:64"`
-	Name      string `gorm:"size:128;not null"`
-	Checksum  string `gorm:"size:128;not null"`
-	StartedAt time.Time
+	Version    string `gorm:"primaryKey;size:64"`
+	Name       string `gorm:"size:128;not null"`
+	Checksum   string `gorm:"size:128;not null"`
+	StartedAt  time.Time
 	FinishedAt *time.Time
-	Success   bool
+	Success    bool
 }
 
 func (migrationRow) TableName() string { return "schema_migrations" }
@@ -126,3 +135,63 @@ func UpdateVersion(tx *gorm.DB, model any, id string, expected int64, updates ma
 }
 
 var ErrVersionConflict = errors.New("version conflict")
+
+// ensureSQLiteDir 创建文件库的上级目录。SQLite 只会创建库文件本身，默认 DSN data/edugo.db
+// 在 data 目录不存在时会返回 SQLITE_CANTOPEN。内存库不落地，不创建目录。
+func ensureSQLiteDir(dsn string) error {
+	dir, ok := sqliteParentDir(dsn)
+	if !ok {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return fmt.Errorf("创建 sqlite 数据目录失败: %w", err)
+	}
+	return nil
+}
+
+func sqliteParentDir(dsn string) (string, bool) {
+	path, ok := sqliteFilePath(dsn)
+	if !ok {
+		return "", false
+	}
+	dir := filepath.Dir(path)
+	if dir == "" || dir == "." {
+		return "", false
+	}
+	return dir, true
+}
+
+func sqliteFilePath(dsn string) (string, bool) {
+	dsn = strings.TrimSpace(dsn)
+	if dsn == "" || dsn == ":memory:" {
+		return "", false
+	}
+	name := dsn
+	query := ""
+	if i := strings.IndexRune(dsn, '?'); i >= 0 {
+		name = dsn[:i]
+		query = dsn[i+1:]
+	}
+	if q, err := url.ParseQuery(query); err == nil && strings.EqualFold(q.Get("mode"), "memory") {
+		return "", false
+	}
+	if strings.HasPrefix(strings.ToLower(name), "file:") {
+		rest := name[len("file:"):]
+		if rest == ":memory:" || strings.HasPrefix(rest, ":memory:") {
+			return "", false
+		}
+		if strings.HasPrefix(rest, "/") {
+			u, err := url.Parse(name)
+			if err != nil {
+				return "", false
+			}
+			p := u.Path
+			if len(p) >= 3 && p[0] == '/' && p[2] == ':' {
+				p = p[1:]
+			}
+			return p, p != "" && p != ":memory:"
+		}
+		return rest, rest != ""
+	}
+	return name, true
+}
