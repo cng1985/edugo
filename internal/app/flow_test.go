@@ -18,6 +18,14 @@ import (
 	"go.uber.org/fx"
 )
 
+func TestAccessTokenValidWithoutConfiguredSecret(t *testing.T) {
+	engine := bootSecret(t, "empty-secret", false, "")
+	admin := login(t, engine, "admin", "AdminPass1")
+	postOK(t, engine, "/api/v1/auth/profile", admin.token, map[string]any{})
+	refreshed := postOK(t, engine, "/api/v1/auth/refresh", "", map[string]any{"refreshToken": admin.refresh})
+	postOK(t, engine, "/api/v1/auth/profile", str(data(refreshed), "accessToken"), map[string]any{})
+}
+
 func TestLearningLoop(t *testing.T) {
 	engine := boot(t, "loop", false)
 	admin := login(t, engine, "admin", "AdminPass1")
@@ -242,6 +250,14 @@ type chapterRef struct{ id string }
 
 func boot(t *testing.T, name string, org bool) *gin.Engine {
 	t.Helper()
+	return bootSecret(t, name, org, "integration-test-secret-32chars-min")
+}
+
+func bootSecret(t *testing.T, name string, org bool, jwtSecret string) *gin.Engine {
+	t.Helper()
+	if jwtSecret == "" {
+		t.Setenv("EDUGO_AUTH_JWT_SECRET", "")
+	}
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", name)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
@@ -258,7 +274,7 @@ database:
   maxOpenConns: 1
   maxIdleConns: 1
 auth:
-  jwtSecret: integration-test-secret-32chars-min
+  jwtSecret: %q
 scheduler:
   enabled: false
   timezone: Asia/Shanghai
@@ -274,7 +290,7 @@ admin:
   password: AdminPass1
 security:
   bcryptCost: 4
-`, dsn, orgFlag, filepath.Join(dir, "uploads"))
+`, dsn, jwtSecret, orgFlag, filepath.Join(dir, "uploads"))
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}

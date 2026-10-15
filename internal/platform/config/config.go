@@ -1,7 +1,10 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -53,15 +56,15 @@ type AIProfile struct {
 }
 
 type AIConfig struct {
-	Enabled           bool                `yaml:"enabled"`
-	Provider          string              `yaml:"provider"`
-	BaseURL           string              `yaml:"baseURL"`
-	APIKey            string              `yaml:"apiKey"`
-	ConnectTimeout    time.Duration       `yaml:"connectTimeout"`
-	RequestTimeout    time.Duration       `yaml:"requestTimeout"`
-	StreamIdleTimeout time.Duration       `yaml:"streamIdleTimeout"`
-	StreamMaxDuration time.Duration       `yaml:"streamMaxDuration"`
-	MaxRetries        int                 `yaml:"maxRetries"`
+	Enabled           bool                 `yaml:"enabled"`
+	Provider          string               `yaml:"provider"`
+	BaseURL           string               `yaml:"baseURL"`
+	APIKey            string               `yaml:"apiKey"`
+	ConnectTimeout    time.Duration        `yaml:"connectTimeout"`
+	RequestTimeout    time.Duration        `yaml:"requestTimeout"`
+	StreamIdleTimeout time.Duration        `yaml:"streamIdleTimeout"`
+	StreamMaxDuration time.Duration        `yaml:"streamMaxDuration"`
+	MaxRetries        int                  `yaml:"maxRetries"`
 	Profiles          map[string]AIProfile `yaml:"profiles"`
 }
 
@@ -87,9 +90,9 @@ type OrganizationConfig struct {
 }
 
 type StorageConfig struct {
-	Driver    string `yaml:"driver"`
-	Root      string `yaml:"root"`
-	MaxBytes  int64  `yaml:"maxBytes"`
+	Driver   string `yaml:"driver"`
+	Root     string `yaml:"root"`
+	MaxBytes int64  `yaml:"maxBytes"`
 }
 
 type QueryConfig struct {
@@ -108,11 +111,11 @@ type SeedConfig struct {
 }
 
 type SecurityConfig struct {
-	BcryptCost         int `yaml:"bcryptCost"`
-	LoginPerMinute     int `yaml:"loginPerMinute"`
-	RefreshPerMinute   int `yaml:"refreshPerMinute"`
-	AIPerMinute        int `yaml:"aiPerMinute"`
-	MaxJSONBodyBytes   int `yaml:"maxJSONBodyBytes"`
+	BcryptCost       int `yaml:"bcryptCost"`
+	LoginPerMinute   int `yaml:"loginPerMinute"`
+	RefreshPerMinute int `yaml:"refreshPerMinute"`
+	AIPerMinute      int `yaml:"aiPerMinute"`
+	MaxJSONBodyBytes int `yaml:"maxJSONBodyBytes"`
 }
 
 func Defaults() *Config {
@@ -162,10 +165,29 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("发布模式缺少配置文件")
 	}
 	applyEnv(cfg)
+	if err := cfg.ensureJWTSecret(); err != nil {
+		return nil, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// ensureJWTSecret 保证签发和校验读取同一个密钥。
+// 开发模式未配置时生成仅本次进程有效的密钥；发布模式留空，由 Validate 拒绝启动。
+func (c *Config) ensureJWTSecret() error {
+	c.Auth.JWTSecret = strings.TrimSpace(c.Auth.JWTSecret)
+	if c.Auth.JWTSecret != "" || strings.EqualFold(c.Server.Mode, "release") {
+		return nil
+	}
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Errorf("生成开发用 JWT 密钥失败")
+	}
+	c.Auth.JWTSecret = hex.EncodeToString(buf)
+	slog.Warn("未配置 JWT 密钥，已生成本次进程有效的开发密钥；重启后已签发的访问令牌会失效")
+	return nil
 }
 
 func applyEnv(cfg *Config) {

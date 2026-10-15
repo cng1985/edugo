@@ -12,6 +12,8 @@ database:
   connMaxLifetime: 1h
   migrationMode: versioned
 auth:
+  # 留空时，非发布模式会在启动时生成仅本次进程有效的密钥，签发和校验使用同一密钥。
+  # 发布模式必须通过 EDUGO_AUTH_JWT_SECRET 注入至少 32 位的密钥。
   jwtSecret: ""
   jwtExpire: 24h
   refreshExpire: 168h
