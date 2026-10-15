@@ -91,9 +91,9 @@ func (s *Service) Refresh(ctx context.Context, req api.RefreshRequest) (api.Toke
 	if err := s.repo.SaveSession(session); err != nil {
 		return api.TokenPair{}, err
 	}
-	access, err := authn.SignAccess(s.secret(), user.ID, session.ID, "edugo", s.cfg.Auth.JWTExpire)
+	access, err := s.signAccess(user.ID, session.ID)
 	if err != nil {
-		return api.TokenPair{}, apperr.Internal("签发令牌失败")
+		return api.TokenPair{}, err
 	}
 	view, err := s.toUser(user)
 	if err != nil {
@@ -472,9 +472,9 @@ func (s *Service) issue(ctx context.Context, user store.User) (api.TokenPair, er
 	if err := s.repo.CreateSession(session); err != nil {
 		return api.TokenPair{}, err
 	}
-	access, err := authn.SignAccess(s.secret(), user.ID, session.ID, "edugo", s.cfg.Auth.JWTExpire)
+	access, err := s.signAccess(user.ID, session.ID)
 	if err != nil {
-		return api.TokenPair{}, apperr.Internal("签发令牌失败")
+		return api.TokenPair{}, err
 	}
 	view, err := s.toUser(user)
 	if err != nil {
@@ -482,6 +482,19 @@ func (s *Service) issue(ctx context.Context, user store.User) (api.TokenPair, er
 	}
 	_ = s.audit.Record(ctx, nil, audit.Entry{ActorID: user.ID, Action: "auth.login", TargetType: "session", TargetID: session.ID})
 	return api.TokenPair{AccessToken: access, RefreshToken: plain, ExpiresAt: now.Add(s.cfg.Auth.JWTExpire), User: view}, nil
+}
+
+// signAccess 使用配置中的 JWT 密钥签发。中间件校验读取的是同一字段。
+func (s *Service) signAccess(userID, sessionID string) (string, error) {
+	secret := strings.TrimSpace(s.cfg.Auth.JWTSecret)
+	if secret == "" {
+		return "", apperr.Internal("未配置 JWT 密钥")
+	}
+	access, err := authn.SignAccess(secret, userID, sessionID, "edugo", s.cfg.Auth.JWTExpire)
+	if err != nil {
+		return "", apperr.Internal("签发令牌失败")
+	}
+	return access, nil
 }
 
 func (s *Service) toUser(user store.User) (api.User, error) {
@@ -494,15 +507,6 @@ func (s *Service) toUser(user store.User) (api.User, error) {
 		Timezone: user.Timezone, OrgID: user.OrgID, Roles: roles, CreatedAt: user.CreatedAt,
 	}, nil
 }
-
-func (s *Service) secret() string {
-	if s.cfg.Auth.JWTSecret != "" {
-		return s.cfg.Auth.JWTSecret
-	}
-	return ephemeralSecret
-}
-
-var ephemeralSecret = xid.New() + xid.New()
 
 func (s *Service) Seed(ctx context.Context) error {
 	perms := []store.Permission{}
